@@ -86,6 +86,19 @@ in
         lib.optional cfg.pcan.enable pcanRules ++ lib.optional cfg.kvaser.enable kvaserRules
       );
 
+    systemd.services.vcan0-setup = lib.mkIf cfg.vcan.enable {
+      description = "Set up virtual CAN interface";
+      after = [ "network.target" ];
+      wantedBy = [ "multi-user.target" ];
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+        ExecStart = "${pkgs.iproute2}/bin/ip link add vcan0 type vcan";
+        ExecStartPost = "${pkgs.iproute2}/bin/ip link set vcan0 up";
+        ExecStop = "${pkgs.iproute2}/bin/ip link del vcan0";
+      };
+    };
+
     environment.systemPackages = [
       pkgs.can-utils
     ];

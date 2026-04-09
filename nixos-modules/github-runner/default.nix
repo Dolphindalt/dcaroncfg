@@ -83,9 +83,7 @@ in
           rsync
           openssh
           coreutils
-          sudo
           iproute2
-          kmod
 
           # VM management
           libvirt
@@ -119,20 +117,5 @@ in
 
     users.groups.github-runner = { };
 
-    security.sudo.extraRules = [
-      {
-        users = [ "github-runner" ];
-        commands = [
-          {
-            command = "${pkgs.kmod}/bin/modprobe";
-            options = [ "NOPASSWD" ];
-          }
-          {
-            command = "${pkgs.iproute2}/bin/ip";
-            options = [ "NOPASSWD" ];
-          }
-        ];
-      }
-    ];
   };
 }
