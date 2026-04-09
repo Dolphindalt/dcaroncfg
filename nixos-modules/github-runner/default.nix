@@ -57,7 +57,7 @@ in
       url = cfg.url;
       tokenFile = cfg.tokenFile;
       noDefaultLabels = true;
-      extraLabels = cfg.labels;
+      extraLabels = [ "self-hosted" ] ++ cfg.labels;
       replace = true;
       user = "github-runner";
       group = "github-runner";
