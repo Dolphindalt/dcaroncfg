@@ -92,6 +92,7 @@ flakeInputs: {
           wget
           git
           htop
+          usbutils
         ];
 
         system.stateVersion = "25.11";
