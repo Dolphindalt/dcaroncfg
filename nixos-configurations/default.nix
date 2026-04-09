@@ -39,6 +39,7 @@ genAttrs (getDirectoryNames ./.) (
             }
           ];
           networking.hostName = host;
+          nixpkgs.overlays = [ flakeInputs.self.overlays.default ];
         }
       )
       flakeInputs.self.nixosModules.default

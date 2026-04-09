@@ -11,6 +11,7 @@
     formatter = import ./formatter flakeInputs;
     formatterModule = import ./formatter-module flakeInputs;
     library = import ./library flakeInputs;
+    overlays = import ./overlays.nix flakeInputs;
     legacyPackages = import ./legacy-packages flakeInputs;
     nixosModules = import ./nixos-modules flakeInputs;
     nixosConfigurations = import ./nixos-configurations flakeInputs;
