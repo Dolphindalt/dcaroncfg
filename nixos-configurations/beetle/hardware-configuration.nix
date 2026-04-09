@@ -25,29 +25,14 @@
   boot.extraModulePackages = [ ];
 
   fileSystems."/" = {
-    device = "tmpfs";
-    fsType = "tmpfs";
+    device = "/dev/disk/by-label/NIXROOT";
+    fsType = "ext4";
   };
 
-  fileSystems."/iso" = {
-    device = "/dev/disk/by-uuid/1980-01-01-00-00-00-00";
-    fsType = "iso9660";
-  };
-
-  fileSystems."/nix/.ro-store" = {
-    device = "/iso/nix-store.squashfs";
-    fsType = "squashfs";
-    options = [ "loop" ];
-  };
-
-  fileSystems."/nix/.rw-store" = {
-    device = "tmpfs";
-    fsType = "tmpfs";
-  };
-
-  fileSystems."/nix/store" = {
-    device = "overlay";
-    fsType = "overlay";
+  fileSystems."/boot" = {
+    device = "/dev/disk/by-label/NIXBOOT";
+    fsType = "vfat";
+    options = [ "fmask=0077" "dmask=0077" ];
   };
 
   swapDevices = [ ];
