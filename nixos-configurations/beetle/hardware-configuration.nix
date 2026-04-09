@@ -17,8 +17,6 @@
   boot.initrd.availableKernelModules = [
     "nvme"
     "xhci_pci"
-    "usb_storage"
-    "sd_mod"
   ];
   boot.initrd.kernelModules = [ ];
   boot.kernelModules = [ "kvm-amd" ];
@@ -32,7 +30,10 @@
   fileSystems."/boot" = {
     device = "/dev/disk/by-label/NIXBOOT";
     fsType = "vfat";
-    options = [ "fmask=0077" "dmask=0077" ];
+    options = [
+      "fmask=0077"
+      "dmask=0077"
+    ];
   };
 
   swapDevices = [ ];
