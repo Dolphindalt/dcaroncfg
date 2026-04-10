@@ -86,17 +86,19 @@ in
       "can_dev"
     ]
     ++ lib.optionals cfg.pcan.enable [ "pcan" ]
-    ++ lib.optionals cfg.kvaser.enable [ "kvaser_usb" ]
     ++ lib.optionals cfg.vcan.enable [ "vcan" ];
 
-    # Blacklist mainline PCAN driver so the vendor driver takes over.
+    # Blacklist mainline drivers so the vendor drivers take over.
     boot.blacklistedKernelModules =
-      lib.optionals cfg.pcan.enable [ "peak_usb" ];
+      lib.optionals cfg.pcan.enable [ "peak_usb" ]
+      ++ lib.optionals cfg.kvaser.enable [ "kvaser_usb" ];
 
     # Build out-of-tree vendor kernel modules.
     boot.extraModulePackages =
       lib.optional cfg.pcan.enable
-        (config.boot.kernelPackages.callPackage ./pcan-driver.nix { });
+        (config.boot.kernelPackages.callPackage ./pcan-driver.nix { })
+      ++ lib.optional cfg.kvaser.enable
+        (config.boot.kernelPackages.callPackage ./kvaser-driver.nix { });
 
     services.udev.extraRules =
       let

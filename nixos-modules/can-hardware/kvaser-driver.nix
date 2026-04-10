@@ -23,14 +23,16 @@ stdenv.mkDerivation {
   nativeBuildInputs = kernel.moduleBuildDependencies;
 
   postPatch = ''
-    # Generate config.mak which the sub-Makefiles include via ../config.mak
-    cat > config.mak <<CONF
-    KDIR=${kernel.dev}/lib/modules/${kernel.modDirVersion}/build
-    CONF
+    # The sub-Makefiles include ../config.mak relative to their directory.
+    cat > config.mak <<EOF
+    KDIR := ${kernel.dev}/lib/modules/${kernel.modDirVersion}/build
+    EOF
   '';
 
+  # Unset 'src' so Kvaser Makefiles don't pick up the Nix store tarball path.
   buildPhase = ''
     runHook preBuild
+    unset src
     make -C common KDIR=${kernel.dev}/lib/modules/${kernel.modDirVersion}/build
     make -C leaf KDIR=${kernel.dev}/lib/modules/${kernel.modDirVersion}/build
     make -C mhydra KDIR=${kernel.dev}/lib/modules/${kernel.modDirVersion}/build
