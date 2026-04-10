@@ -103,6 +103,8 @@ in
         pcanRules = ''
           # PCAN-USB FD (Peak System)
           SUBSYSTEM=="usb", ATTR{idVendor}=="0c72", ATTR{idProduct}=="0012", GROUP="${cfg.group}", MODE="0660"
+          # PCAN chardev created by pcan.ko
+          KERNEL=="pcan*", GROUP="${cfg.group}", MODE="0660"
         '';
         kvaserRules = ''
           # Kvaser U100 (Kvaser AB)
