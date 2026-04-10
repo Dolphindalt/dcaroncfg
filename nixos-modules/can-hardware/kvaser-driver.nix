@@ -25,8 +25,8 @@ stdenv.mkDerivation {
   postPatch = ''
     # The sub-Makefiles resolve config.mak one level above the linuxcan directory.
     cat > ../config.mak <<EOF
-    KDIR := ${kernel.dev}/lib/modules/${kernel.modDirVersion}/build
-    EOF
+KDIR := ${kernel.dev}/lib/modules/${kernel.modDirVersion}/build
+EOF
   '';
 
   # Unset 'src' so Kvaser Makefiles don't pick up the Nix store tarball path.
