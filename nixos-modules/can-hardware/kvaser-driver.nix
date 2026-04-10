@@ -26,21 +26,16 @@ stdenv.mkDerivation {
 
   nativeBuildInputs = kernel.moduleBuildDependencies;
 
-  postPatch = ''
-    # Kbuild sets $(src) to the module dir, so ../config.mak resolves here.
-    cat > config.mak <<EOF
-KDIR := ${kdir}
-EOF
-  '';
-
   # Unset 'src' so Kvaser Makefiles don't pick up the Nix store tarball path.
-  # Use Kbuild (make -C $KDIR M=...) to build each kernel module.
+  # Use the existing config.mak from the tarball, just override KDIR.
+  # Each sub-Makefile's kv_module target invokes Kbuild properly.
   buildPhase = ''
     runHook preBuild
     unset src
     for mod in common leaf mhydra usbcanII virtualcan; do
       if [ -d "$mod" ]; then
-        make -C ${kdir} M=$(pwd)/$mod modules
+        echo "Building $mod..."
+        make -C $mod KDIR=${kdir} KV_NO_PCI=1
       fi
     done
     runHook postBuild
