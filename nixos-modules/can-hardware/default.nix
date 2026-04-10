@@ -115,10 +115,28 @@ in
         lib.optional cfg.pcan.enable pcanRules ++ lib.optional cfg.kvaser.enable kvaserRules
       );
 
+    # Register PCAN USB device IDs with the pcan driver at boot.
+    systemd.services.pcan-usb-bind = lib.mkIf cfg.pcan.enable {
+      description = "Bind PCAN USB devices to pcan driver";
+      after = [ "systemd-modules-load.service" "systemd-udevd.service" ];
+      wantedBy = [ "multi-user.target" ];
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+      };
+      script = ''
+        # PCAN-USB FD
+        echo "0c72 0012" > /sys/bus/usb/drivers/pcan/new_id 2>/dev/null || true
+        sleep 1
+        echo "PCAN USB devices bound"
+      '';
+    };
+
     # Bring up physical CAN interfaces after their kernel drivers create them.
     systemd.services.can-interfaces-setup = lib.mkIf (cfg.pcan.enable || cfg.kvaser.enable) {
       description = "Configure and bring up CAN interfaces";
-      after = [ "network.target" "systemd-udevd.service" ];
+      after = [ "network.target" "systemd-udevd.service" ]
+        ++ lib.optional cfg.pcan.enable "pcan-usb-bind.service";
       wantedBy = [ "multi-user.target" ];
       path = [ pkgs.iproute2 ];
       serviceConfig = {
