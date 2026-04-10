@@ -105,6 +105,12 @@ in
           ]
           ++ lib.optional canCfg.enable canCfg.group
         );
+        # CAN hardware testing needs access to /dev/pcan*, /dev/mhydra*,
+        # /proc/pcan, and real user groups. Relax the default sandboxing.
+        PrivateDevices = lib.mkForce false;
+        PrivateUsers = lib.mkForce false;
+        ProtectProc = lib.mkForce "default";
+        ProtectKernelModules = lib.mkForce false;
       };
     };
 
