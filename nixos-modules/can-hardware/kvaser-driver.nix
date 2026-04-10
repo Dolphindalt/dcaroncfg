@@ -22,17 +22,20 @@ stdenv.mkDerivation {
 
   nativeBuildInputs = kernel.moduleBuildDependencies;
 
-  makeFlags = [
-    "KDIR=${kernel.dev}/lib/modules/${kernel.modDirVersion}/build"
-  ];
+  postPatch = ''
+    # Generate config.mak which the sub-Makefiles include via ../config.mak
+    cat > config.mak <<CONF
+    KDIR=${kernel.dev}/lib/modules/${kernel.modDirVersion}/build
+    CONF
+  '';
 
   buildPhase = ''
     runHook preBuild
-    make $makeFlags -C common
-    make $makeFlags -C leaf
-    make $makeFlags -C mhydra
-    make $makeFlags -C usbcanII
-    make $makeFlags -C virtualcan
+    make -C common KDIR=${kernel.dev}/lib/modules/${kernel.modDirVersion}/build
+    make -C leaf KDIR=${kernel.dev}/lib/modules/${kernel.modDirVersion}/build
+    make -C mhydra KDIR=${kernel.dev}/lib/modules/${kernel.modDirVersion}/build
+    make -C usbcanII KDIR=${kernel.dev}/lib/modules/${kernel.modDirVersion}/build
+    make -C virtualcan KDIR=${kernel.dev}/lib/modules/${kernel.modDirVersion}/build
     runHook postBuild
   '';
 
