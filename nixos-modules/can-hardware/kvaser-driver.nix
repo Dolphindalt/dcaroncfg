@@ -8,6 +8,10 @@
   kernel,
 }:
 
+let
+  kdir = "${kernel.dev}/lib/modules/${kernel.modDirVersion}/build";
+in
+
 stdenv.mkDerivation {
   pname = "kvaser-linuxcan-driver";
   version = "5.51.461-${kernel.version}";
@@ -23,21 +27,21 @@ stdenv.mkDerivation {
   nativeBuildInputs = kernel.moduleBuildDependencies;
 
   postPatch = ''
-    # The sub-Makefiles resolve config.mak one level above the linuxcan directory.
     cat > ../config.mak <<EOF
-KDIR := ${kernel.dev}/lib/modules/${kernel.modDirVersion}/build
+KDIR := ${kdir}
 EOF
   '';
 
   # Unset 'src' so Kvaser Makefiles don't pick up the Nix store tarball path.
+  # Use Kbuild (make -C $KDIR M=...) to build each kernel module.
   buildPhase = ''
     runHook preBuild
     unset src
-    make -C common KDIR=${kernel.dev}/lib/modules/${kernel.modDirVersion}/build
-    make -C leaf KDIR=${kernel.dev}/lib/modules/${kernel.modDirVersion}/build
-    make -C mhydra KDIR=${kernel.dev}/lib/modules/${kernel.modDirVersion}/build
-    make -C usbcanII KDIR=${kernel.dev}/lib/modules/${kernel.modDirVersion}/build
-    make -C virtualcan KDIR=${kernel.dev}/lib/modules/${kernel.modDirVersion}/build
+    for mod in common leaf mhydra usbcanII virtualcan; do
+      if [ -d "$mod" ]; then
+        make -C ${kdir} M=$(pwd)/$mod modules
+      fi
+    done
     runHook postBuild
   '';
 
