@@ -117,28 +117,36 @@ in
         lib.optional cfg.pcan.enable pcanRules ++ lib.optional cfg.kvaser.enable kvaserRules
       );
 
-    # Register PCAN USB device IDs with the pcan driver at boot.
-    systemd.services.pcan-usb-bind = lib.mkIf cfg.pcan.enable {
-      description = "Bind PCAN USB devices to pcan driver";
+    # Register USB device IDs with vendor drivers at boot.
+    systemd.services.can-usb-bind = lib.mkIf (cfg.pcan.enable || cfg.kvaser.enable) {
+      description = "Bind CAN USB devices to vendor drivers";
       after = [ "systemd-modules-load.service" "systemd-udevd.service" ];
       wantedBy = [ "multi-user.target" ];
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
       };
-      script = ''
-        # PCAN-USB FD
-        echo "0c72 0012" > /sys/bus/usb/drivers/pcan/new_id 2>/dev/null || true
-        sleep 1
-        echo "PCAN USB devices bound"
-      '';
+      script =
+        (lib.optionalString cfg.pcan.enable ''
+          # PCAN-USB FD
+          echo "0c72 0012" > /sys/bus/usb/drivers/pcan/new_id 2>/dev/null || true
+          echo "PCAN USB device bound"
+        '')
+        + (lib.optionalString cfg.kvaser.enable ''
+          # Kvaser U100
+          echo "0bfd 0111" > /sys/bus/usb/drivers/mhydra/new_id 2>/dev/null || true
+          echo "Kvaser USB device bound"
+        '')
+        + ''
+          sleep 1
+        '';
     };
 
     # Bring up physical CAN interfaces after their kernel drivers create them.
     systemd.services.can-interfaces-setup = lib.mkIf (cfg.pcan.enable || cfg.kvaser.enable) {
       description = "Configure and bring up CAN interfaces";
       after = [ "network.target" "systemd-udevd.service" ]
-        ++ lib.optional cfg.pcan.enable "pcan-usb-bind.service";
+        ++ lib.optional (cfg.pcan.enable || cfg.kvaser.enable) "can-usb-bind.service";
       wantedBy = [ "multi-user.target" ];
       path = [ pkgs.iproute2 ];
       serviceConfig = {
