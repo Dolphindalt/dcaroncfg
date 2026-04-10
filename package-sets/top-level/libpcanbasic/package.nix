@@ -16,7 +16,7 @@ stdenv.mkDerivation {
   src = requireFile {
     name = "peak-linux-driver-9.0.tar.gz";
     url = "https://www.peak-system.com/fileadmin/media/linux/files/peak-linux-driver-9.0.tar.gz";
-    hash = "sha256-ZE2ckaMfH9YfUIAtta1jyzpvHeHMbqLUbWOPh+shIxs=";
+    hash = "sha256-atzKQ1gP5hnBkRUrXTdgHK4u31q+ne6lOJtRPeSjj/s=";
   };
 
   nativeBuildInputs = [ gcc ];
