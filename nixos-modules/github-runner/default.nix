@@ -113,6 +113,12 @@ in
       group = "github-runner";
       home = "/var/lib/github-runner";
       createHome = true;
+      extraGroups =
+        [
+          "kvm"
+          "libvirtd"
+        ]
+        ++ lib.optional canCfg.enable canCfg.group;
     };
 
     users.groups.github-runner = { };
