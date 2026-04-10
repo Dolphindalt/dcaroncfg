@@ -126,6 +126,7 @@ in
         Type = "oneshot";
         RemainAfterExit = true;
       };
+      path = [ pkgs.udev ];
       script =
         (lib.optionalString cfg.pcan.enable ''
           # PCAN-USB FD
@@ -138,7 +139,9 @@ in
           echo "Kvaser USB device bound"
         '')
         + ''
-          sleep 1
+          # Wait for device nodes and interfaces to be created.
+          udevadm settle --timeout=10
+          sleep 2
         '';
     };
 
