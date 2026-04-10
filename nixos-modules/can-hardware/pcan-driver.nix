@@ -23,8 +23,7 @@ stdenv.mkDerivation {
   nativeBuildInputs = kernel.moduleBuildDependencies;
 
   makeFlags = [
-    "KERNEL_DIR=${kernel.dev}/lib/modules/${kernel.modDirVersion}/build"
-    "INSTALL_DIR=$(out)"
+    "KERNEL_LOCATION=${kernel.dev}/lib/modules/${kernel.modDirVersion}/build"
     "NET=NETDEV_SUPPORT"
   ];
 
