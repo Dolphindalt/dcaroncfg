@@ -23,8 +23,8 @@ stdenv.mkDerivation {
   nativeBuildInputs = kernel.moduleBuildDependencies;
 
   postPatch = ''
-    # The sub-Makefiles include ../config.mak relative to their directory.
-    cat > config.mak <<EOF
+    # The sub-Makefiles resolve config.mak one level above the linuxcan directory.
+    cat > ../config.mak <<EOF
     KDIR := ${kernel.dev}/lib/modules/${kernel.modDirVersion}/build
     EOF
   '';
