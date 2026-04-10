@@ -3,27 +3,31 @@
   stdenv,
   requireFile,
   gcc,
+  popt,
 }:
 
 stdenv.mkDerivation {
   pname = "libpcanbasic";
-  version = "5.0.0.1116";
+  version = "9.0.0";
 
-  # Download the PCAN-Basic Linux standalone package from:
-  # https://www.peak-system.com/PCAN-Basic.239.0.html
-  # Then: nix-store --add-fixed sha256 PCAN-Basic_Linux-5.0.0.1116.tar.gz
+  # Download the peak-linux-driver tarball from:
+  # https://www.peak-system.com/fileadmin/media/linux/files/peak-linux-driver-9.0.tar.gz
+  # Then: nix-store --add-fixed sha256 peak-linux-driver-9.0.tar.gz
   src = requireFile {
-    name = "PCAN-Basic_Linux-5.0.0.1116.tar.gz";
-    url = "https://www.peak-system.com/PCAN-Basic.239.0.html";
-    hash = "sha256-HNNvNOA7IT8bJf/05m8CWu8gmxlcKV0qIQpMOxOrEbQ=";
+    name = "peak-linux-driver-9.0.tar.gz";
+    url = "https://www.peak-system.com/fileadmin/media/linux/files/peak-linux-driver-9.0.tar.gz";
+    hash = "sha256-ZE2ckaMfH9YfUIAtta1jyzpvHeHMbqLUbWOPh+shIxs=";
   };
 
   nativeBuildInputs = [ gcc ];
+  buildInputs = [ popt ];
 
-  sourceRoot = "PCAN-Basic_Linux-5.0.0.1116/libpcanbasic/pcanbasic";
+  sourceRoot = "peak-linux-driver-9.0/libpcanbasic/pcanbasic";
 
+  # Build with netdev (SocketCAN) support for mainline peak_usb driver.
   buildPhase = ''
-    make PCANFD_HEADER=src/pcan/driver/pcanxl.h
+    make clean
+    make
   '';
 
   installPhase = ''
