@@ -35,7 +35,7 @@ stdenv.mkDerivation {
     for mod in common leaf mhydra usbcanII virtualcan; do
       if [ -d "$mod" ]; then
         echo "Building $mod..."
-        make -C $mod KDIR=${kdir} KV_NO_PCI=1
+        (cd $mod && make KDIR=${kdir} KV_NO_PCI=1)
       fi
     done
     runHook postBuild
