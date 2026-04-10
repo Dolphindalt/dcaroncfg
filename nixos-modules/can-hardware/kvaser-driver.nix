@@ -27,7 +27,8 @@ stdenv.mkDerivation {
   nativeBuildInputs = kernel.moduleBuildDependencies;
 
   postPatch = ''
-    cat > ../config.mak <<EOF
+    # Kbuild sets $(src) to the module dir, so ../config.mak resolves here.
+    cat > config.mak <<EOF
 KDIR := ${kdir}
 EOF
   '';
