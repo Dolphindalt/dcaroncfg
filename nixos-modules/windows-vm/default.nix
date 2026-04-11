@@ -132,20 +132,19 @@ let
     set -euo pipefail
     echo "Attaching USB devices to VM..."
 
-    # Unload CAN kernel drivers to release USB devices.
-    # The pcan chardev driver claims devices outside the standard USB
-    # framework, so unbind/remove_id doesn't work — must rmmod entirely.
-    echo "  Unloading host CAN drivers..."
-    ${pkgs.kmod}/bin/rmmod mhydra 2>/dev/null || true
-    ${pkgs.kmod}/bin/rmmod kvcommon 2>/dev/null || true
-    ${pkgs.kmod}/bin/rmmod pcan 2>/dev/null || true
-    sleep 2
-
     ${lib.concatMapStrings (dev: ''
       echo "  Attaching ${dev.vendor}:${dev.product} to VM..."
       ${virsh} attach-device "${cfg.vmName}" "${mkUsbAttachXml dev}" --live || \
         echo "  Warning: could not attach ${dev.vendor}:${dev.product} (may already be attached)"
     '') cfg.usbDevices}
+
+    # Kvaser needs a detach/reattach cycle for Windows to detect the driver.
+    ${lib.concatMapStrings (dev: ''
+      ${virsh} detach-device "${cfg.vmName}" "${mkUsbAttachXml dev}" --live 2>/dev/null || true
+      sleep 1
+      ${virsh} attach-device "${cfg.vmName}" "${mkUsbAttachXml dev}" --live 2>/dev/null || true
+    '') cfg.usbDevices}
+    sleep 3
     echo "USB devices attached."
   '';
 

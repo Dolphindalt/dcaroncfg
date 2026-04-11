@@ -121,12 +121,13 @@ in
     systemd.services.can-usb-bind = lib.mkIf (cfg.pcan.enable || cfg.kvaser.enable) {
       description = "Bind CAN USB devices to vendor drivers";
       after = [ "systemd-modules-load.service" "systemd-udevd.service" ];
-      wantedBy = [ "multi-user.target" ];
+      # Not started at boot — CI controls when devices are bound.
+      # For manual use: sudo systemctl start can-usb-bind
+      wantedBy = [ ];
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
       };
-      path = [ pkgs.udev ];
       script =
         (lib.optionalString cfg.pcan.enable ''
           # PCAN-USB FD
@@ -139,8 +140,6 @@ in
           echo "Kvaser USB device bound"
         '')
         + ''
-          # Wait for device nodes and interfaces to be created.
-          udevadm settle --timeout=10
           sleep 2
         '';
     };
