@@ -8,6 +8,7 @@
 let
   cfg = config.dcaroncfg.githubRunner;
   canCfg = config.dcaroncfg.canHardware;
+  vmCfg = config.dcaroncfg.windowsVm;
 in
 
 {
@@ -91,6 +92,7 @@ in
           # CAN utilities
           can-utils
         ]
+        ++ lib.optionals vmCfg.enable vmCfg.ciPackages
         ++ cfg.extraPackages;
 
       extraEnvironment = lib.mkIf canCfg.enable {

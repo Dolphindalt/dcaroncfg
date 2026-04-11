@@ -219,6 +219,20 @@ in
       default = [ ];
       description = "USB devices available for passthrough to the VM.";
     };
+
+    ciPackages = lib.mkOption {
+      type = lib.types.listOf lib.types.package;
+      readOnly = true;
+      default = [
+        ciVmStart
+        ciVmWaitSsh
+        ciUsbToVm
+        ciRunWindowsTests
+        ciUsbToHost
+        ciVmStop
+      ];
+      description = "CI helper script packages for use in runner extraPackages.";
+    };
   };
 
   config = lib.mkIf cfg.enable {
