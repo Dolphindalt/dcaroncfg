@@ -24,7 +24,7 @@ stdenv.mkDerivation {
 
   makeFlags = [
     "KERNEL_LOCATION=${kernel.dev}/lib/modules/${kernel.modDirVersion}/build"
-    "NET=NETDEV_SUPPORT"
+    "NET=NO"
   ];
 
   buildPhase = ''

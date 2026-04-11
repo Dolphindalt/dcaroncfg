@@ -173,8 +173,9 @@ in
             fi
           '';
         in
-        (lib.optionalString cfg.pcan.enable (setupIf "can0"))
-        + (lib.optionalString cfg.kvaser.enable (setupIf "can1"));
+        # PCAN uses chardev mode (NET=NO), no SocketCAN interface to configure.
+        # Kvaser still uses SocketCAN via its vendor driver.
+        lib.optionalString cfg.kvaser.enable (setupIf "can0");
     };
 
     systemd.services.vcan0-setup = lib.mkIf cfg.vcan.enable {
