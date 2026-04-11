@@ -284,6 +284,16 @@ in
 
     virtualisation.spiceUSBRedirection.enable = true;
 
+    # Allow libvirtd group members to manage VMs without polkit prompts.
+    security.polkit.extraConfig = ''
+      polkit.addRule(function(action, subject) {
+        if (action.id.indexOf("org.libvirt.unix.manage") === 0 &&
+            subject.isInGroup("libvirtd")) {
+          return polkit.Result.YES;
+        }
+      });
+    '';
+
     # Define the VM on system activation.
     system.activationScripts.defineWindowsVm = lib.stringAfter [ "var" ] ''
       if [ -S /var/run/libvirt/libvirt-sock ]; then
