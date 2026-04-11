@@ -132,30 +132,16 @@ let
     set -euo pipefail
     echo "Attaching USB devices to VM..."
 
-    # Release devices from kernel drivers that use new_id (pcan, mhydra).
-    # remove_id tells the driver to stop claiming the vendor:product pair,
-    # causing the device to reappear as a free USB device.
-    for driver in pcan mhydra leaf; do
-      if [ -e "/sys/bus/usb/drivers/$driver/remove_id" ]; then
-        ${lib.concatMapStrings (dev: ''
-          echo "0x${dev.vendor} 0x${dev.product}" > "/sys/bus/usb/drivers/$driver/remove_id" 2>/dev/null || true
-        '') cfg.usbDevices}
-      fi
-    done
+    # Unload CAN kernel drivers to release USB devices.
+    # The pcan chardev driver claims devices outside the standard USB
+    # framework, so unbind/remove_id doesn't work — must rmmod entirely.
+    echo "  Unloading host CAN drivers..."
+    ${pkgs.kmod}/bin/rmmod mhydra 2>/dev/null || true
+    ${pkgs.kmod}/bin/rmmod kvcommon 2>/dev/null || true
+    ${pkgs.kmod}/bin/rmmod pcan 2>/dev/null || true
+    sleep 2
 
-    # Also unbind any remaining interface bindings.
     ${lib.concatMapStrings (dev: ''
-      usb_dev=$(${findUsbDev} ${dev.vendor} ${dev.product}) || true
-      if [ -n "$usb_dev" ]; then
-        for intf in /sys/bus/usb/devices/"$usb_dev":*/driver; do
-          if [ -e "$intf" ]; then
-            intf_id="$(basename "$(dirname "$intf")")"
-            driver_name="$(basename "$(readlink "$intf")")"
-            echo "  Unbinding $intf_id from $driver_name"
-            echo "$intf_id" > "$intf/unbind" 2>/dev/null || true
-          fi
-        done
-      fi
       echo "  Attaching ${dev.vendor}:${dev.product} to VM..."
       ${virsh} attach-device "${cfg.vmName}" "${mkUsbAttachXml dev}" --live || \
         echo "  Warning: could not attach ${dev.vendor}:${dev.product} (may already be attached)"
@@ -184,10 +170,15 @@ let
     echo "Waiting for USB re-enumeration..."
     sleep 2
 
-    # Rebind devices to host drivers.
+    # Reload CAN drivers and rebind devices.
+    echo "  Reloading host CAN drivers..."
+    ${pkgs.kmod}/bin/modprobe pcan 2>/dev/null || true
+    ${pkgs.kmod}/bin/modprobe kvcommon 2>/dev/null || true
+    ${pkgs.kmod}/bin/modprobe mhydra 2>/dev/null || true
+    sleep 1
     echo "0c72 0012" > /sys/bus/usb/drivers/pcan/new_id 2>/dev/null || true
     echo "0bfd 0111" > /sys/bus/usb/drivers/mhydra/new_id 2>/dev/null || true
-    ${pkgs.udev}/bin/udevadm settle --timeout=5
+    sleep 2
     echo "USB devices returned to host."
   '';
 
