@@ -37,7 +37,7 @@ flakeInputs: {
           isNormalUser = true;
           extraGroups = [
             "wheel"
-            "libvirt"
+            "libvirtd"
             "kvm"
             "can"
           ];
