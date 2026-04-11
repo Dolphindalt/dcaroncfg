@@ -139,11 +139,10 @@ let
     '') cfg.usbDevices}
 
     # Kvaser needs a detach/reattach cycle for Windows to detect the driver.
-    ${lib.concatMapStrings (dev: ''
-      ${virsh} detach-device "${cfg.vmName}" "${mkUsbAttachXml dev}" --live 2>/dev/null || true
-      sleep 1
-      ${virsh} attach-device "${cfg.vmName}" "${mkUsbAttachXml dev}" --live 2>/dev/null || true
-    '') cfg.usbDevices}
+    # Only cycle the Kvaser device (0bfd), not PCAN.
+    ${virsh} detach-device "${cfg.vmName}" "${mkUsbAttachXml (builtins.elemAt cfg.usbDevices 1)}" --live 2>/dev/null || true
+    sleep 2
+    ${virsh} attach-device "${cfg.vmName}" "${mkUsbAttachXml (builtins.elemAt cfg.usbDevices 1)}" --live 2>/dev/null || true
     sleep 3
     echo "USB devices attached."
   '';
