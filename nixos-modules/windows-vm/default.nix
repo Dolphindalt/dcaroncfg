@@ -131,20 +131,30 @@ let
   ciUsbToVm = pkgs.writeShellScriptBin "ci-usb-to-vm" ''
     set -euo pipefail
     echo "Attaching USB devices to VM..."
+
+    # Release devices from kernel drivers that use new_id (pcan, mhydra).
+    # remove_id tells the driver to stop claiming the vendor:product pair,
+    # causing the device to reappear as a free USB device.
+    for driver in pcan mhydra leaf; do
+      if [ -e "/sys/bus/usb/drivers/$driver/remove_id" ]; then
+        ${lib.concatMapStrings (dev: ''
+          echo "0x${dev.vendor} 0x${dev.product}" > "/sys/bus/usb/drivers/$driver/remove_id" 2>/dev/null || true
+        '') cfg.usbDevices}
+      fi
+    done
+
+    # Also unbind any remaining interface bindings.
     ${lib.concatMapStrings (dev: ''
-      echo "  Unbinding ${dev.vendor}:${dev.product} from host driver..."
       usb_dev=$(${findUsbDev} ${dev.vendor} ${dev.product}) || true
       if [ -n "$usb_dev" ]; then
-        # Unbind from any host driver (pcan, mhydra, etc.)
         for intf in /sys/bus/usb/devices/"$usb_dev":*/driver; do
           if [ -e "$intf" ]; then
             intf_id="$(basename "$(dirname "$intf")")"
             driver_name="$(basename "$(readlink "$intf")")"
-            echo "    Unbinding $intf_id from $driver_name"
+            echo "  Unbinding $intf_id from $driver_name"
             echo "$intf_id" > "$intf/unbind" 2>/dev/null || true
           fi
         done
-        sleep 1
       fi
       echo "  Attaching ${dev.vendor}:${dev.product} to VM..."
       ${virsh} attach-device "${cfg.vmName}" "${mkUsbAttachXml dev}" --live || \
