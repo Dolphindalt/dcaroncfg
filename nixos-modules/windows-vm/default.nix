@@ -116,11 +116,40 @@ let
     echo "SSH is ready."
   '';
 
+  # Find the sysfs USB device path for a given vendor:product pair.
+  findUsbDev = pkgs.writeShellScript "find-usb-dev" ''
+    vendor="$1"
+    product="$2"
+    for dev in /sys/bus/usb/devices/*/idVendor; do
+      dir="$(dirname "$dev")"
+      if [ "$(cat "$dir/idVendor" 2>/dev/null)" = "$vendor" ] && \
+         [ "$(cat "$dir/idProduct" 2>/dev/null)" = "$product" ]; then
+        basename "$dir"
+        exit 0
+      fi
+    done
+    exit 1
+  '';
+
   ciUsbToVm = pkgs.writeShellScriptBin "ci-usb-to-vm" ''
     set -euo pipefail
     echo "Attaching USB devices to VM..."
     ${lib.concatMapStrings (dev: ''
-      echo "  Attaching ${dev.vendor}:${dev.product}..."
+      echo "  Unbinding ${dev.vendor}:${dev.product} from host driver..."
+      usb_dev=$(${findUsbDev} ${dev.vendor} ${dev.product}) || true
+      if [ -n "$usb_dev" ]; then
+        # Unbind from any host driver (pcan, mhydra, etc.)
+        for intf in /sys/bus/usb/devices/"$usb_dev":*/driver; do
+          if [ -e "$intf" ]; then
+            intf_id="$(basename "$(dirname "$intf")")"
+            driver_name="$(basename "$(readlink "$intf")")"
+            echo "    Unbinding $intf_id from $driver_name"
+            echo "$intf_id" > "$intf/unbind" 2>/dev/null || true
+          fi
+        done
+        sleep 1
+      fi
+      echo "  Attaching ${dev.vendor}:${dev.product} to VM..."
       ${virsh} attach-device "${cfg.vmName}" "${mkUsbAttachXml dev}" --live || \
         echo "  Warning: could not attach ${dev.vendor}:${dev.product} (may already be attached)"
     '') cfg.usbDevices}
@@ -145,6 +174,13 @@ let
       ${virsh} detach-device "${cfg.vmName}" "${mkUsbAttachXml dev}" --live || \
         echo "  Warning: could not detach ${dev.vendor}:${dev.product} (may already be detached)"
     '') cfg.usbDevices}
+    echo "Waiting for USB re-enumeration..."
+    sleep 2
+
+    # Rebind devices to host drivers.
+    echo "0c72 0012" > /sys/bus/usb/drivers/pcan/new_id 2>/dev/null || true
+    echo "0bfd 0111" > /sys/bus/usb/drivers/mhydra/new_id 2>/dev/null || true
+    ${pkgs.udev}/bin/udevadm settle --timeout=5
     echo "USB devices returned to host."
   '';
 
