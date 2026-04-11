@@ -88,10 +88,10 @@ let
   ciVmStart = pkgs.writeShellScriptBin "ci-vm-start" ''
     set -euo pipefail
     echo "Starting Windows VM '${cfg.vmName}'..."
-    ${virsh} start "${cfg.vmName}" 2>/dev/null || {
-      echo "VM already running or failed to start"
-      ${virsh} domstate "${cfg.vmName}"
-    }
+    # Force a clean start — destroy any leftover state from previous runs.
+    ${virsh} destroy "${cfg.vmName}" 2>/dev/null || true
+    sleep 1
+    ${virsh} start "${cfg.vmName}"
   '';
 
   ciVmWaitSsh = pkgs.writeShellScriptBin "ci-vm-wait-ssh" ''
