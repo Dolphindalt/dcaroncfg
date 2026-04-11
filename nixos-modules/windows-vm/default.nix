@@ -86,13 +86,14 @@ let
     '';
 
   sshOpts = "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR";
+  virsh = "${pkgs.libvirt}/bin/virsh -c qemu:///system";
 
   ciVmStart = pkgs.writeShellScriptBin "ci-vm-start" ''
     set -euo pipefail
     echo "Starting Windows VM '${cfg.vmName}'..."
-    ${pkgs.libvirt}/bin/virsh start "${cfg.vmName}" 2>/dev/null || {
+    ${virsh} start "${cfg.vmName}" 2>/dev/null || {
       echo "VM already running or failed to start"
-      ${pkgs.libvirt}/bin/virsh domstate "${cfg.vmName}"
+      ${virsh} domstate "${cfg.vmName}"
     }
   '';
 
@@ -120,7 +121,7 @@ let
     echo "Attaching USB devices to VM..."
     ${lib.concatMapStrings (dev: ''
       echo "  Attaching ${dev.vendor}:${dev.product}..."
-      ${pkgs.libvirt}/bin/virsh attach-device "${cfg.vmName}" "${mkUsbAttachXml dev}" --live || \
+      ${virsh} attach-device "${cfg.vmName}" "${mkUsbAttachXml dev}" --live || \
         echo "  Warning: could not attach ${dev.vendor}:${dev.product} (may already be attached)"
     '') cfg.usbDevices}
     echo "USB devices attached."
@@ -141,7 +142,7 @@ let
     echo "Detaching USB devices from VM..."
     ${lib.concatMapStrings (dev: ''
       echo "  Detaching ${dev.vendor}:${dev.product}..."
-      ${pkgs.libvirt}/bin/virsh detach-device "${cfg.vmName}" "${mkUsbAttachXml dev}" --live || \
+      ${virsh} detach-device "${cfg.vmName}" "${mkUsbAttachXml dev}" --live || \
         echo "  Warning: could not detach ${dev.vendor}:${dev.product} (may already be detached)"
     '') cfg.usbDevices}
     echo "USB devices returned to host."
@@ -150,15 +151,15 @@ let
   ciVmStop = pkgs.writeShellScriptBin "ci-vm-stop" ''
     set -euo pipefail
     echo "Stopping Windows VM '${cfg.vmName}'..."
-    ${pkgs.libvirt}/bin/virsh shutdown "${cfg.vmName}" 2>/dev/null || true
+    ${virsh} shutdown "${cfg.vmName}" 2>/dev/null || true
 
     # Wait for graceful shutdown.
     timeout=60
     elapsed=0
-    while [ "$(${pkgs.libvirt}/bin/virsh domstate "${cfg.vmName}" 2>/dev/null)" = "running" ]; do
+    while [ "$(${virsh} domstate "${cfg.vmName}" 2>/dev/null)" = "running" ]; do
       if [ "$elapsed" -ge "$timeout" ]; then
         echo "Graceful shutdown timed out, forcing destroy..."
-        ${pkgs.libvirt}/bin/virsh destroy "${cfg.vmName}" 2>/dev/null || true
+        ${virsh} destroy "${cfg.vmName}" 2>/dev/null || true
         break
       fi
       sleep 2
@@ -250,7 +251,7 @@ in
     # Define the VM on system activation.
     system.activationScripts.defineWindowsVm = lib.stringAfter [ "var" ] ''
       if [ -S /var/run/libvirt/libvirt-sock ]; then
-        ${pkgs.libvirt}/bin/virsh define ${vmXml} 2>/dev/null || true
+        ${virsh} define ${vmXml} 2>/dev/null || true
       fi
     '';
 
