@@ -67,9 +67,6 @@ let
         <video>
           <model type='qxl' ram='65536' vram='65536'/>
         </video>
-        <channel type='spicevmc'>
-          <target type='virtio' name='com.redhat.spice.0'/>
-        </channel>
       </devices>
     </domain>
   '';
