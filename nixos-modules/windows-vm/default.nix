@@ -169,16 +169,8 @@ let
     echo "Waiting for USB re-enumeration..."
     sleep 2
 
-    # Reload CAN drivers and rebind devices.
-    echo "  Reloading host CAN drivers..."
-    ${pkgs.kmod}/bin/modprobe pcan 2>/dev/null || true
-    ${pkgs.kmod}/bin/modprobe kvcommon 2>/dev/null || true
-    ${pkgs.kmod}/bin/modprobe mhydra 2>/dev/null || true
-    sleep 1
-    echo "0c72 0012" > /sys/bus/usb/drivers/pcan/new_id 2>/dev/null || true
-    echo "0bfd 0111" > /sys/bus/usb/drivers/mhydra/new_id 2>/dev/null || true
-    sleep 2
     echo "USB devices returned to host."
+    echo "Run 'systemctl start can-usb-bind' to bind devices to host drivers."
   '';
 
   ciVmStop = pkgs.writeShellScriptBin "ci-vm-stop" ''
@@ -281,11 +273,16 @@ in
 
     virtualisation.spiceUSBRedirection.enable = true;
 
-    # Allow libvirtd group members to manage VMs without polkit prompts.
+    # Allow libvirtd group members to manage VMs and systemd services without prompts.
     security.polkit.extraConfig = ''
       polkit.addRule(function(action, subject) {
         if (action.id.indexOf("org.libvirt.unix.manage") === 0 &&
             subject.isInGroup("libvirtd")) {
+          return polkit.Result.YES;
+        }
+        if (action.id === "org.freedesktop.systemd1.manage-units" &&
+            action.lookup("unit") === "can-usb-bind.service" &&
+            subject.user === "github-runner") {
           return polkit.Result.YES;
         }
       });
