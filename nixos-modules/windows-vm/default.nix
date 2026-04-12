@@ -326,9 +326,9 @@ in
         '') cfg.usbDevices}
         sleep 3
 
-        # USB reset both devices to clear CAN controller state left by Windows.
-        echo "Resetting USB devices..."
-        usbreset 0c72:0012 2>/dev/null || true
+        # USB reset Kvaser to clear CAN controller state left by Windows.
+        # Do NOT usbreset PCAN — it permanently kills the USB device.
+        echo "Resetting Kvaser USB device..."
         usbreset 0bfd:0111 2>/dev/null || true
         sleep 2
 
