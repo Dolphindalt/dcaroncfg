@@ -318,36 +318,114 @@ in
       description = "Detach CAN USB devices from VM and rebind to host";
       wantedBy = [ ];
       serviceConfig.Type = "oneshot";
-      path = [ pkgs.kmod pkgs.usbutils ];
+      path = [ pkgs.kmod pkgs.usbutils pkgs.pciutils ];
       script = ''
+        # --- Step 1: Detach all USB devices from VM ---
         ${lib.concatMapStrings (dev: ''
           echo "Detaching ${dev.vendor}:${dev.product} from VM..."
           ${virsh} detach-device "${cfg.vmName}" "${mkUsbAttachXml dev}" --live 2>/dev/null || true
         '') cfg.usbDevices}
         sleep 3
 
-        # USB reset Kvaser to clear CAN controller state left by Windows.
-        # Do NOT usbreset PCAN — it permanently kills the USB device.
+        # --- Step 2: Reset Kvaser (usbreset works fine for it) ---
         echo "Resetting Kvaser USB device..."
         usbreset 0bfd:0111 2>/dev/null || true
         sleep 2
 
-        # Reload Kvaser modules and rebind both.
+        # --- Step 3: Escalating PCAN reset ---
+        # PCAN-USB FD firmware gets stuck after VM passthrough detach.
+        # usbreset won't work (firmware can't respond). Try host-side resets.
+        pcan_reset_ok=0
+
+        # Helper: try to rebind PCAN driver and check /proc/pcan.
+        try_pcan_rebind() {
+          echo "0c72 0012" > /sys/bus/usb/drivers/pcan/new_id 2>/dev/null || true
+          sleep 3
+          if grep -q "usbfd" /proc/pcan 2>/dev/null; then
+            return 0
+          fi
+          return 1
+        }
+
+        # Method 1: USB unbind/rebind (lightest — tears down USB connection at host level).
+        PCAN_DEV=$(${findUsbDev} 0c72 0012) || true
+        if [ -n "$PCAN_DEV" ]; then
+          echo "PCAN reset: Method 1 — USB unbind/rebind ($PCAN_DEV)..."
+          echo -n "$PCAN_DEV" > /sys/bus/usb/drivers/usb/unbind 2>/dev/null || true
+          sleep 2
+          echo -n "$PCAN_DEV" > /sys/bus/usb/drivers/usb/bind 2>/dev/null || true
+          sleep 2
+          if try_pcan_rebind; then
+            echo "PCAN recovered via Method 1 (unbind/rebind)."
+            pcan_reset_ok=1
+          fi
+        else
+          echo "PCAN reset: could not find USB device, skipping Method 1."
+        fi
+
+        # Method 2: Authorized toggle (different kernel code path — full re-enumeration).
+        if [ "$pcan_reset_ok" -eq 0 ]; then
+          PCAN_DEV=$(${findUsbDev} 0c72 0012) || true
+          if [ -n "$PCAN_DEV" ]; then
+            echo "PCAN reset: Method 2 — authorized toggle ($PCAN_DEV)..."
+            echo 0 > /sys/bus/usb/devices/$PCAN_DEV/authorized 2>/dev/null || true
+            sleep 2
+            echo 1 > /sys/bus/usb/devices/$PCAN_DEV/authorized 2>/dev/null || true
+            sleep 2
+            if try_pcan_rebind; then
+              echo "PCAN recovered via Method 2 (authorized toggle)."
+              pcan_reset_ok=1
+            fi
+          else
+            echo "PCAN reset: could not find USB device, skipping Method 2."
+          fi
+        fi
+
+        # Method 3: xHCI controller reset (nuclear — resets entire host controller).
+        # PCAN is on Bus 3 → xHCI controller 0000:04:00.4.
+        # Kvaser is on Bus 1 → xHCI controller 0000:04:00.3 (safe, not touched).
+        if [ "$pcan_reset_ok" -eq 0 ]; then
+          echo "PCAN reset: Method 3 — xHCI controller reset (0000:04:00.4)..."
+          echo -n "0000:04:00.4" > /sys/bus/pci/drivers/xhci_hcd/unbind 2>/dev/null || true
+          sleep 3
+          echo -n "0000:04:00.4" > /sys/bus/pci/drivers/xhci_hcd/bind 2>/dev/null || true
+          sleep 3
+          if try_pcan_rebind; then
+            echo "PCAN recovered via Method 3 (xHCI controller reset)."
+            pcan_reset_ok=1
+          fi
+        fi
+
+        if [ "$pcan_reset_ok" -eq 0 ]; then
+          echo "WARNING: All PCAN reset methods failed!"
+        fi
+
+        # --- Step 4: Reload Kvaser modules and rebind ---
         modprobe kvcommon 2>/dev/null || true
         modprobe mhydra 2>/dev/null || true
         sleep 1
-        echo "0c72 0012" > /sys/bus/usb/drivers/pcan/new_id 2>/dev/null || true
         echo "0bfd 0111" > /sys/bus/usb/drivers/mhydra/new_id 2>/dev/null || true
 
-        # Wait for PCAN.
-        for i in $(seq 1 30); do
-          if grep -q "usbfd" /proc/pcan 2>/dev/null; then
-            echo "PCAN ready after ''${i}s"
-            break
-          fi
-          sleep 1
-        done
-        sleep 5
+        # --- Step 5: Final wait for PCAN readiness ---
+        if [ "$pcan_reset_ok" -eq 0 ]; then
+          echo "Polling /proc/pcan for late recovery..."
+          for i in $(seq 1 30); do
+            if grep -q "usbfd" /proc/pcan 2>/dev/null; then
+              echo "PCAN ready after ''${i}s (late recovery)"
+              pcan_reset_ok=1
+              break
+            fi
+            sleep 1
+          done
+        fi
+
+        if [ "$pcan_reset_ok" -eq 0 ]; then
+          echo "ERROR: PCAN device not available in /proc/pcan after all reset attempts."
+          exit 1
+        fi
+
+        echo "All CAN devices returned to host successfully."
+        sleep 2
       '';
     };
 
