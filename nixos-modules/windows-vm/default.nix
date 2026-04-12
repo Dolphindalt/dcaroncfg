@@ -318,13 +318,19 @@ in
       description = "Detach CAN USB devices from VM and rebind to host";
       wantedBy = [ ];
       serviceConfig.Type = "oneshot";
-      path = [ pkgs.kmod ];
+      path = [ pkgs.kmod pkgs.usbutils ];
       script = ''
         ${lib.concatMapStrings (dev: ''
           echo "Detaching ${dev.vendor}:${dev.product} from VM..."
           ${virsh} detach-device "${cfg.vmName}" "${mkUsbAttachXml dev}" --live 2>/dev/null || true
         '') cfg.usbDevices}
         sleep 3
+
+        # USB reset both devices to clear CAN controller state left by Windows.
+        echo "Resetting USB devices..."
+        usbreset 0c72:0012 2>/dev/null || true
+        usbreset 0bfd:0111 2>/dev/null || true
+        sleep 2
 
         # Reload Kvaser modules and rebind both.
         modprobe kvcommon 2>/dev/null || true
