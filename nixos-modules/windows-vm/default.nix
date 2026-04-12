@@ -130,28 +130,8 @@ let
 
   ciUsbToVm = pkgs.writeShellScriptBin "ci-usb-to-vm" ''
     set -euo pipefail
-    echo "Releasing USB devices from host drivers..."
-
-    # PCAN: use remove_id (rmmod kills the USB device permanently).
-    echo "0c72 0012" > /sys/bus/usb/drivers/pcan/remove_id 2>/dev/null || true
-
-    # Kvaser: rmmod is safe (device survives).
-    ${pkgs.kmod}/bin/rmmod mhydra 2>/dev/null || true
-    ${pkgs.kmod}/bin/rmmod kvcommon 2>/dev/null || true
-    sleep 2
-
-    echo "Attaching USB devices to VM..."
-    ${lib.concatMapStrings (dev: ''
-      echo "  Attaching ${dev.vendor}:${dev.product} to VM..."
-      ${virsh} attach-device "${cfg.vmName}" "${mkUsbAttachXml dev}" --live || \
-        echo "  Warning: could not attach ${dev.vendor}:${dev.product} (may already be attached)"
-    '') cfg.usbDevices}
-
-    # Kvaser needs a detach/reattach cycle for Windows to detect the driver.
-    ${virsh} detach-device "${cfg.vmName}" "${mkUsbAttachXml (builtins.elemAt cfg.usbDevices 1)}" --live 2>/dev/null || true
-    sleep 2
-    ${virsh} attach-device "${cfg.vmName}" "${mkUsbAttachXml (builtins.elemAt cfg.usbDevices 1)}" --live 2>/dev/null || true
-    sleep 3
+    echo "Releasing USB devices and attaching to VM..."
+    systemctl start ci-usb-to-vm.service
     echo "USB devices attached."
   '';
 
@@ -167,32 +147,8 @@ let
 
   ciUsbToHost = pkgs.writeShellScriptBin "ci-usb-to-host" ''
     set -euo pipefail
-    echo "Detaching USB devices from VM..."
-    ${lib.concatMapStrings (dev: ''
-      echo "  Detaching ${dev.vendor}:${dev.product}..."
-      ${virsh} detach-device "${cfg.vmName}" "${mkUsbAttachXml dev}" --live || \
-        echo "  Warning: could not detach ${dev.vendor}:${dev.product} (may already be detached)"
-    '') cfg.usbDevices}
-    echo "Waiting for USB re-enumeration..."
-    sleep 3
-
-    # Rebind: reload Kvaser modules, then bind both via new_id.
-    ${pkgs.kmod}/bin/modprobe kvcommon 2>/dev/null || true
-    ${pkgs.kmod}/bin/modprobe mhydra 2>/dev/null || true
-    sleep 1
-    echo "0c72 0012" > /sys/bus/usb/drivers/pcan/new_id 2>/dev/null || true
-    echo "0bfd 0111" > /sys/bus/usb/drivers/mhydra/new_id 2>/dev/null || true
-
-    # Wait for PCAN to appear in /proc/pcan.
-    echo "Waiting for PCAN device..."
-    for i in $(seq 1 30); do
-      if grep -q "usbfd" /proc/pcan 2>/dev/null; then
-        echo "PCAN ready after ''${i}s"
-        break
-      fi
-      sleep 1
-    done
-    sleep 5
+    echo "Returning USB devices to host..."
+    systemctl start ci-usb-to-host.service
     echo "USB devices returned to host and bound."
   '';
 
@@ -296,7 +252,7 @@ in
 
     virtualisation.spiceUSBRedirection.enable = true;
 
-    # Allow libvirtd group members to manage VMs and systemd services without prompts.
+    # Allow libvirtd group to manage VMs and github-runner to manage CI services.
     security.polkit.extraConfig = ''
       polkit.addRule(function(action, subject) {
         if (action.id.indexOf("org.libvirt.unix.manage") === 0 &&
@@ -304,9 +260,13 @@ in
           return polkit.Result.YES;
         }
         if (action.id === "org.freedesktop.systemd1.manage-units" &&
-            action.lookup("unit") === "can-usb-bind.service" &&
             subject.user === "github-runner") {
-          return polkit.Result.YES;
+          var unit = action.lookup("unit");
+          if (unit === "can-usb-bind.service" ||
+              unit === "ci-usb-to-vm.service" ||
+              unit === "ci-usb-to-host.service") {
+            return polkit.Result.YES;
+          }
         }
       });
     '';
@@ -326,5 +286,64 @@ in
       ciUsbToHost
       ciVmStop
     ];
+
+    # Privileged systemd services for USB lifecycle (run as root).
+    systemd.services.ci-usb-to-vm = {
+      description = "Release CAN USB devices from host and attach to VM";
+      wantedBy = [ ];
+      serviceConfig.Type = "oneshot";
+      path = [ pkgs.kmod ];
+      script = ''
+        # PCAN: remove_id keeps USB device alive (rmmod kills it).
+        echo "0c72 0012" > /sys/bus/usb/drivers/pcan/remove_id 2>/dev/null || true
+        # Kvaser: rmmod is safe.
+        rmmod mhydra 2>/dev/null || true
+        rmmod kvcommon 2>/dev/null || true
+        sleep 2
+
+        ${lib.concatMapStrings (dev: ''
+          echo "Attaching ${dev.vendor}:${dev.product} to VM..."
+          ${virsh} attach-device "${cfg.vmName}" "${mkUsbAttachXml dev}" --live || true
+        '') cfg.usbDevices}
+
+        # Kvaser detach/reattach for Windows driver detection.
+        ${virsh} detach-device "${cfg.vmName}" "${mkUsbAttachXml (builtins.elemAt cfg.usbDevices 1)}" --live 2>/dev/null || true
+        sleep 2
+        ${virsh} attach-device "${cfg.vmName}" "${mkUsbAttachXml (builtins.elemAt cfg.usbDevices 1)}" --live 2>/dev/null || true
+        sleep 3
+      '';
+    };
+
+    systemd.services.ci-usb-to-host = {
+      description = "Detach CAN USB devices from VM and rebind to host";
+      wantedBy = [ ];
+      serviceConfig.Type = "oneshot";
+      path = [ pkgs.kmod ];
+      script = ''
+        ${lib.concatMapStrings (dev: ''
+          echo "Detaching ${dev.vendor}:${dev.product} from VM..."
+          ${virsh} detach-device "${cfg.vmName}" "${mkUsbAttachXml dev}" --live 2>/dev/null || true
+        '') cfg.usbDevices}
+        sleep 3
+
+        # Reload Kvaser modules and rebind both.
+        modprobe kvcommon 2>/dev/null || true
+        modprobe mhydra 2>/dev/null || true
+        sleep 1
+        echo "0c72 0012" > /sys/bus/usb/drivers/pcan/new_id 2>/dev/null || true
+        echo "0bfd 0111" > /sys/bus/usb/drivers/mhydra/new_id 2>/dev/null || true
+
+        # Wait for PCAN.
+        for i in $(seq 1 30); do
+          if grep -q "usbfd" /proc/pcan 2>/dev/null; then
+            echo "PCAN ready after ''${i}s"
+            break
+          fi
+          sleep 1
+        done
+        sleep 5
+      '';
+    };
+
   };
 }
