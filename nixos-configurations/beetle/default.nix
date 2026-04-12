@@ -93,6 +93,7 @@ flakeInputs: {
           git
           htop
           usbutils
+          uhubctl
         ];
 
         system.stateVersion = "25.11";
