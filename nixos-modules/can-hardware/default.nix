@@ -128,8 +128,16 @@ in
         Type = "oneshot";
         RemainAfterExit = true;
       };
+      path = [ pkgs.kmod ];
       script =
-        (lib.optionalString cfg.pcan.enable ''
+        ''
+          # Ensure kernel modules are loaded (may have been rmmod'd).
+          modprobe pcan 2>/dev/null || true
+          modprobe kvcommon 2>/dev/null || true
+          modprobe mhydra 2>/dev/null || true
+          sleep 1
+        ''
+        + (lib.optionalString cfg.pcan.enable ''
           # PCAN-USB FD
           echo "0c72 0012" > /sys/bus/usb/drivers/pcan/new_id 2>/dev/null || true
           echo "PCAN USB device bound"
