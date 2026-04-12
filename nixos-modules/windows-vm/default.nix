@@ -130,8 +130,17 @@ let
 
   ciUsbToVm = pkgs.writeShellScriptBin "ci-usb-to-vm" ''
     set -euo pipefail
-    echo "Attaching USB devices to VM..."
+    echo "Releasing USB devices from host drivers..."
 
+    # PCAN: use remove_id (rmmod kills the USB device permanently).
+    echo "0c72 0012" > /sys/bus/usb/drivers/pcan/remove_id 2>/dev/null || true
+
+    # Kvaser: rmmod is safe (device survives).
+    ${pkgs.kmod}/bin/rmmod mhydra 2>/dev/null || true
+    ${pkgs.kmod}/bin/rmmod kvcommon 2>/dev/null || true
+    sleep 2
+
+    echo "Attaching USB devices to VM..."
     ${lib.concatMapStrings (dev: ''
       echo "  Attaching ${dev.vendor}:${dev.product} to VM..."
       ${virsh} attach-device "${cfg.vmName}" "${mkUsbAttachXml dev}" --live || \
@@ -139,7 +148,6 @@ let
     '') cfg.usbDevices}
 
     # Kvaser needs a detach/reattach cycle for Windows to detect the driver.
-    # Only cycle the Kvaser device (0bfd), not PCAN.
     ${virsh} detach-device "${cfg.vmName}" "${mkUsbAttachXml (builtins.elemAt cfg.usbDevices 1)}" --live 2>/dev/null || true
     sleep 2
     ${virsh} attach-device "${cfg.vmName}" "${mkUsbAttachXml (builtins.elemAt cfg.usbDevices 1)}" --live 2>/dev/null || true
@@ -166,10 +174,26 @@ let
         echo "  Warning: could not detach ${dev.vendor}:${dev.product} (may already be detached)"
     '') cfg.usbDevices}
     echo "Waiting for USB re-enumeration..."
-    sleep 2
+    sleep 3
 
-    echo "USB devices returned to host."
-    echo "Run 'systemctl start can-usb-bind' to bind devices to host drivers."
+    # Rebind: reload Kvaser modules, then bind both via new_id.
+    ${pkgs.kmod}/bin/modprobe kvcommon 2>/dev/null || true
+    ${pkgs.kmod}/bin/modprobe mhydra 2>/dev/null || true
+    sleep 1
+    echo "0c72 0012" > /sys/bus/usb/drivers/pcan/new_id 2>/dev/null || true
+    echo "0bfd 0111" > /sys/bus/usb/drivers/mhydra/new_id 2>/dev/null || true
+
+    # Wait for PCAN to appear in /proc/pcan.
+    echo "Waiting for PCAN device..."
+    for i in $(seq 1 30); do
+      if grep -q "usbfd" /proc/pcan 2>/dev/null; then
+        echo "PCAN ready after ''${i}s"
+        break
+      fi
+      sleep 1
+    done
+    sleep 5
+    echo "USB devices returned to host and bound."
   '';
 
   ciVmStop = pkgs.writeShellScriptBin "ci-vm-stop" ''
