@@ -113,8 +113,8 @@ in
           SUBSYSTEM=="usb", ATTR{idVendor}=="0bfd", ATTR{idProduct}=="0111", GROUP="${cfg.group}", MODE="0660"
         '';
         hubRules = ''
-          # VIA Labs USB3.0 Hub — allow uhubctl power control by CAN group
-          SUBSYSTEM=="usb", ATTR{idVendor}=="2109", ATTR{idProduct}=="0817", GROUP="${cfg.group}", MODE="0660"
+          # VIA Labs USB hubs (USB2.0 2817 + USB3.0 0817) — allow uhubctl power control by CAN group
+          SUBSYSTEM=="usb", ATTR{idVendor}=="2109", GROUP="${cfg.group}", MODE="0660"
         '';
       in
       lib.concatStrings (
