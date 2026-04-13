@@ -8,6 +8,6 @@ flakeInputs.nixpkgs-lib.lib.genAttrs
     system:
     import flakeInputs.nixpkgs {
       inherit system;
-      # TODO(dcaron): Add overlays here as needed.
+      overlays = [ flakeInputs.self.overlays.default ];
     }
   )

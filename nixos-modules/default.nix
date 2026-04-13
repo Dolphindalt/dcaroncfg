@@ -1,3 +1,9 @@
 flakeInputs: {
-  default = { }; # TODO(dcaron): Populated this as needed.
+  default = {
+    imports = [
+      ./can-hardware
+      ./github-runner
+      ./windows-vm
+    ];
+  };
 }
