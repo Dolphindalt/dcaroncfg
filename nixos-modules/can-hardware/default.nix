@@ -112,9 +112,15 @@ in
           # Kvaser U100 (Kvaser AB)
           SUBSYSTEM=="usb", ATTR{idVendor}=="0bfd", ATTR{idProduct}=="0111", GROUP="${cfg.group}", MODE="0660"
         '';
+        hubRules = ''
+          # VIA Labs USB3.0 Hub — allow uhubctl power control by CAN group
+          SUBSYSTEM=="usb", ATTR{idVendor}=="2109", ATTR{idProduct}=="0817", GROUP="${cfg.group}", MODE="0660"
+        '';
       in
       lib.concatStrings (
-        lib.optional cfg.pcan.enable pcanRules ++ lib.optional cfg.kvaser.enable kvaserRules
+        lib.optional cfg.pcan.enable pcanRules
+        ++ lib.optional cfg.kvaser.enable kvaserRules
+        ++ [ hubRules ]
       );
 
     # Register USB device IDs with vendor drivers at boot.
