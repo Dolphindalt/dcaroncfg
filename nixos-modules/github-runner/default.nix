@@ -91,6 +91,9 @@ in
 
           # CAN utilities
           can-utils
+
+          # USB hub power control
+          uhubctl
         ]
         ++ lib.optionals vmCfg.enable vmCfg.ciPackages
         ++ cfg.extraPackages;
