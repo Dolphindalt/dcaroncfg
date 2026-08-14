@@ -60,7 +60,7 @@ flakeInputs: {
         # GitHub Actions self-hosted runner.
         dcaroncfg.githubRunner = {
           enable = true;
-          url = "https://github.com/Dolphindalt/can-hal-rs";
+          url = "https://github.com/can-hal-rs-contributors/can-hal-rs";
           name = "beetle";
         };
 
