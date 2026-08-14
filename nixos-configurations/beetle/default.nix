@@ -1,6 +1,6 @@
 flakeInputs: {
   release = rec {
-    number = "2511";
+    number = "2605";
     nixpkgs = flakeInputs."nixpkgs-${number}";
   };
   modules =
